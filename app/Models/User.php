@@ -53,4 +53,14 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->is_active;
     }
+
+    /**
+     * Indica si el usuario tiene alguno de los roles dados.
+     *
+     * Punto único de comparación de roles para las Policies (RF-07).
+     */
+    public function hasRole(Role ...$roles): bool
+    {
+        return in_array($this->role, $roles, true);
+    }
 }
