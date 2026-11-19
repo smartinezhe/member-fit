@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\Role;
 use Database\Factories\UserFactory;
+use DomainException;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -62,5 +63,48 @@ class User extends Authenticatable implements FilamentUser
     public function hasRole(Role ...$roles): bool
     {
         return in_array($this->role, $roles, true);
+    }
+
+    /**
+     * Es el único administrador activo del sistema (RN-14).
+     *
+     * Se usa para impedir que el sistema se quede sin administrador activo.
+     */
+    public function isLastActiveAdmin(): bool
+    {
+        if (! $this->hasRole(Role::Admin) || ! $this->is_active) {
+            return false;
+        }
+
+        return ! static::query()
+            ->whereKeyNot($this->getKey())
+            ->where('role', Role::Admin->value)
+            ->where('is_active', true)
+            ->exists();
+    }
+
+    /**
+     * Guardián de RN-14: no permite que una actualización deje al sistema sin
+     * administrador activo (por desactivarlo o por quitarle el rol).
+     *
+     * La interfaz ya deshabilita esos campos; esta es la defensa de fondo.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (User $user): void {
+            if (! $user->isDirty(['role', 'is_active'])) {
+                return;
+            }
+
+            // El usuario seguirá siendo administrador activo: el cambio es válido.
+            if ($user->hasRole(Role::Admin) && $user->is_active) {
+                return;
+            }
+
+            // Se evalúa el estado guardado en la base de datos, no el modificado en memoria.
+            if ($user->fresh()?->isLastActiveAdmin()) {
+                throw new DomainException('Debe quedar al menos un administrador activo.');
+            }
+        });
     }
 }

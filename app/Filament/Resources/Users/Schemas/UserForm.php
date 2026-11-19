@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\Users\Schemas;
 
 use App\Enums\Role;
+use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -37,7 +38,9 @@ class UserForm
                 Select::make('role')
                     ->label('Rol')
                     ->options(Role::class)
-                    ->required(),
+                    ->required()
+                    // RN-14: el último administrador activo no puede cambiar de rol.
+                    ->disabled(fn (?User $record): bool => $record?->isLastActiveAdmin() ?? false),
                 TextInput::make('password')
                     ->label('Contraseña')
                     ->password()
@@ -47,7 +50,9 @@ class UserForm
                     ->dehydrated(fn (?string $state): bool => filled($state)),
                 Toggle::make('is_active')
                     ->label('Activo')
-                    ->default(true),
+                    ->default(true)
+                    // RN-14: el administrador no puede desactivarse a sí mismo.
+                    ->disabled(fn (?User $record): bool => $record?->is(auth()->user()) ?? false),
             ])
             ->columns(2);
     }
