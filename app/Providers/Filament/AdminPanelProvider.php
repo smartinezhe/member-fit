@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use Filament\Auth\MultiFactor\Email\EmailAuthentication;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -23,11 +24,12 @@ class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return $panel
+        $panel = $panel
             ->default()
             ->id('admin')
             ->path('admin')
             ->login()
+            ->profile()
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -55,5 +57,16 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ]);
+
+        // 2FA por correo obligatorio para todos los roles (RF-04, DP-02).
+        // La obligatoriedad es global al panel, no por rol. Solo se desactiva
+        // con MEMBERFIT_TWO_FACTOR_ENABLED=false en demostraciones locales.
+        if (config('memberfit.two_factor_enabled')) {
+            $panel = $panel->multiFactorAuthentication([
+                EmailAuthentication::make(),
+            ], isRequired: true);
+        }
+
+        return $panel;
     }
 }

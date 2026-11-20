@@ -21,10 +21,9 @@ class UserFactory extends Factory
     protected static ?string $password;
 
     /**
-     * Define the model's default state.
-     *
-     * Por defecto crea un recepcionista activo y sin 2FA; los estados de abajo
-     * cambian el rol o el estado para las pruebas.
+     * Por defecto crea un recepcionista activo y con 2FA por correo activado,
+     * igual que un usuario real del panel (el 2FA es obligatorio, RF-04). Los
+     * estados de abajo cambian el rol o el estado para las pruebas.
      *
      * @return array<string, mixed>
      */
@@ -39,7 +38,7 @@ class UserFactory extends Factory
             'role' => Role::Receptionist,
             'phone' => fake()->numerify('3#########'),
             'is_active' => true,
-            'has_email_authentication' => false,
+            'has_email_authentication' => true,
         ];
     }
 
@@ -71,5 +70,13 @@ class UserFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => ['is_active' => false]);
+    }
+
+    /**
+     * Usuario que aún no activó el 2FA por correo (RF-04): el panel lo obliga a configurarlo.
+     */
+    public function withoutTwoFactor(): static
+    {
+        return $this->state(fn (array $attributes) => ['has_email_authentication' => false]);
     }
 }

@@ -11,8 +11,8 @@ beforeEach(function () {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 });
 
-it('logs in an active user with valid credentials', function () {
-    $user = User::factory()->admin()->create();
+it('logs in an active user without 2FA with valid credentials', function () {
+    $user = User::factory()->admin()->withoutTwoFactor()->create();
 
     Livewire::test(Login::class)
         ->fillForm(['email' => $user->email, 'password' => 'password'])
@@ -23,7 +23,7 @@ it('logs in an active user with valid credentials', function () {
 });
 
 it('rejects an inactive user even with valid credentials (RF-01)', function () {
-    $user = User::factory()->admin()->inactive()->create();
+    $user = User::factory()->admin()->inactive()->withoutTwoFactor()->create();
 
     Livewire::test(Login::class)
         ->fillForm(['email' => $user->email, 'password' => 'password'])
@@ -34,7 +34,7 @@ it('rejects an inactive user even with valid credentials (RF-01)', function () {
 });
 
 it('rejects a wrong password', function () {
-    $user = User::factory()->admin()->create();
+    $user = User::factory()->admin()->withoutTwoFactor()->create();
 
     Livewire::test(Login::class)
         ->fillForm(['email' => $user->email, 'password' => 'wrong-password'])
