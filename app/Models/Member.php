@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\DocumentType;
+use App\Enums\MembershipStatus;
 use Database\Factories\MemberFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Socio del gimnasio (RF-09).
@@ -101,5 +105,81 @@ class Member extends Model
     public function memberships(): HasMany
     {
         return $this->hasMany(Membership::class);
+    }
+
+    /**
+     * Estado de membresía calculado (RN-05).
+     *
+     * En listados, usar antes el scope withLatestEndDate() para que el valor
+     * venga precargado y no se haga una consulta por socio. Si no está
+     * precargado (por ejemplo en la ficha de un solo socio), se consulta aquí.
+     *
+     * @return Attribute<MembershipStatus, never>
+     */
+    protected function status(): Attribute
+    {
+        return Attribute::make(
+            get: function (): MembershipStatus {
+                $latest = array_key_exists('latest_ends_on', $this->attributes)
+                    ? $this->attributes['latest_ends_on']
+                    : $this->memberships()->notCancelled()->max('ends_on');
+
+                return MembershipStatus::fromEndsOn(
+                    $latest === null ? null : Carbon::parse($latest),
+                    (int) config('memberfit.expiry_alert_days'),
+                );
+            },
+        );
+    }
+
+    /**
+     * Precarga latest_ends_on: vencimiento de la membresía no anulada más
+     * reciente. Evita consultas N+1 al mostrar el estado en tablas (RN-05).
+     *
+     * @param  Builder<Member>  $query
+     */
+    #[Scope]
+    protected function withLatestEndDate(Builder $query): void
+    {
+        $query->withMax(
+            ['memberships as latest_ends_on' => fn (Builder $q) => $q->notCancelled()],
+            'ends_on',
+        );
+    }
+
+    /**
+     * Filtra socios por estado de membresía en SQL (RF-11, RN-05).
+     *
+     * Equivale a mirar la membresía más reciente porque las renovaciones son
+     * continuas (RN-02). Replica MembershipStatus::fromEndsOn().
+     *
+     * @param  Builder<Member>  $query
+     */
+    #[Scope]
+    protected function inStatus(Builder $query, MembershipStatus $status): void
+    {
+        $today = today()->toDateString();
+        $limit = today()->addDays((int) config('memberfit.expiry_alert_days'))->toDateString();
+
+        match ($status) {
+            // Alguna membresía vence después de hoy + N.
+            MembershipStatus::Valid => $query->whereHas(
+                'memberships',
+                fn (Builder $q) => $q->notCancelled()->where('ends_on', '>', $limit),
+            ),
+            // Alguna vence desde hoy, pero ninguna después de hoy + N.
+            MembershipStatus::ExpiringSoon => $query
+                ->whereHas('memberships', fn (Builder $q) => $q->notCancelled()->where('ends_on', '>=', $today))
+                ->whereDoesntHave('memberships', fn (Builder $q) => $q->notCancelled()->where('ends_on', '>', $limit)),
+            // Tiene membresías, pero ninguna vence desde hoy.
+            MembershipStatus::Expired => $query
+                ->whereHas('memberships', fn (Builder $q) => $q->notCancelled())
+                ->whereDoesntHave('memberships', fn (Builder $q) => $q->notCancelled()->where('ends_on', '>=', $today)),
+            // Ninguna membresía no anulada.
+            MembershipStatus::NoMembership => $query->whereDoesntHave(
+                'memberships',
+                fn (Builder $q) => $q->notCancelled(),
+            ),
+        };
     }
 }
