@@ -12,4 +12,7 @@ return [
      */
     'two_factor_enabled' => (bool) env('MEMBERFIT_TWO_FACTOR_ENABLED', true),
 
+    // Días de anticipación para marcar una membresía como "Por vencer" (RN-07).
+    'expiry_alert_days' => (int) env('MEMBERSHIP_EXPIRY_ALERT_DAYS', 7),
+
 ];
