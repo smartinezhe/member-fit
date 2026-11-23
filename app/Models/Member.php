@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\DocumentType;
 use App\Enums\MembershipStatus;
+use App\Enums\Role;
 use Database\Factories\MemberFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -181,5 +182,21 @@ class Member extends Model
                 fn (Builder $q) => $q->notCancelled(),
             ),
         };
+    }
+
+    /**
+     * Acota la consulta a los socios que el usuario puede ver (RN-13, RF-23).
+     *
+     * Administrador y recepcionista ven todos; el entrenador solo los que
+     * tiene asignados. Es la contraparte en listas de MemberPolicy::view().
+     *
+     * @param  Builder<Member>  $query
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, User $user): void
+    {
+        if ($user->hasRole(Role::Trainer)) {
+            $query->where('trainer_id', $user->id);
+        }
     }
 }
