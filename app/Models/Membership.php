@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\MembershipPeriodStatus;
 use Database\Factories\MembershipFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -81,5 +83,36 @@ class Membership extends Model
     public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);
+    }
+
+    /**
+     * Estado de esta membresía para el historial (RF-12), según RN-01 y RN-08.
+     *
+     * Anulada manda sobre cualquier fecha; después se compara con hoy
+     * (fechas inclusivas, zona America/Bogota).
+     *
+     * @return Attribute<MembershipPeriodStatus, never>
+     */
+    protected function status(): Attribute
+    {
+        return Attribute::make(
+            get: function (): MembershipPeriodStatus {
+                if ($this->cancelled_at !== null) {
+                    return MembershipPeriodStatus::Cancelled;
+                }
+
+                $today = today();
+
+                if ($this->starts_on->greaterThan($today)) {
+                    return MembershipPeriodStatus::Upcoming;
+                }
+
+                if ($this->ends_on->lessThan($today)) {
+                    return MembershipPeriodStatus::Expired;
+                }
+
+                return MembershipPeriodStatus::Active;
+            },
+        );
     }
 }
