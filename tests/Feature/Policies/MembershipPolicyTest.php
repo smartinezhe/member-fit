@@ -32,3 +32,14 @@ it('gives trainers no access to memberships (RF-23)', function () {
         ->and($trainer->can('view', $membership))->toBeFalse()
         ->and($trainer->can('create', Membership::class))->toBeFalse();
 });
+
+it('lets only admins cancel memberships (RN-08)', function (string $state, bool $allowed) {
+    $user = User::factory()->{$state}()->create();
+    $membership = Membership::factory()->create();
+
+    expect($user->can('cancel', $membership))->toBe($allowed);
+})->with([
+    'admin' => ['admin', true],
+    'receptionist' => ['receptionist', false],
+    'trainer' => ['trainer', false],
+]);

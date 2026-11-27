@@ -17,8 +17,7 @@ use App\Models\User;
  * - Nadie edita ni elimina: las fechas las calcula el sistema (RN-02) y una
  *   membresía errónea se anula, no se modifica ni se borra (RN-08).
  *
- * La anulación (RN-08, solo administrador) se añade como habilidad propia
- * (cancel) en el Día 5.
+ * La anulación (RN-08) es una habilidad propia (cancel), solo del administrador.
  */
 class MembershipPolicy
 {
@@ -35,6 +34,15 @@ class MembershipPolicy
     public function create(User $user): bool
     {
         return $user->hasRole(Role::Admin, Role::Receptionist);
+    }
+
+    /**
+     * Anular la membresía más reciente de un socio: solo el administrador (RN-08).
+     * Que membresía es anulable lo decide la Action CancelMembership.
+     */
+    public function cancel(User $user, Membership $membership): bool
+    {
+        return $user->hasRole(Role::Admin);
     }
 
     public function update(User $user, Membership $membership): bool
