@@ -41,3 +41,32 @@ it('rejects an end date before the start date', function () {
 it('reads the expiry alert threshold from config (RN-07)', function () {
     expect(config('memberfit.expiry_alert_days'))->toBe(7);
 });
+
+it('only the latest not cancelled membership is cancellable (RN-08)', function () {
+    $member = Member::factory()->create();
+    $older = Membership::factory()->for($member)->create(['starts_on' => '2026-11-11', 'ends_on' => '2026-12-10']);
+    $latest = Membership::factory()->for($member)->create(['starts_on' => '2026-12-11', 'ends_on' => '2027-01-09']);
+
+    expect($latest->isLatestNotCancelled())->toBeTrue()
+        ->and($older->isLatestNotCancelled())->toBeFalse();
+});
+
+it('is not cancellable once it is already cancelled (RN-08)', function () {
+    $membership = Membership::factory()->cancelled()->create();
+
+    expect($membership->isLatestNotCancelled())->toBeFalse();
+});
+
+it('makes the previous membership the latest when the newest is cancelled (RN-08)', function () {
+    $member = Member::factory()->create();
+    $older = Membership::factory()->for($member)->create(['starts_on' => '2026-11-11', 'ends_on' => '2026-12-10']);
+    Membership::factory()->for($member)->cancelled()->create(['starts_on' => '2026-12-11', 'ends_on' => '2027-01-09']);
+
+    expect($older->isLatestNotCancelled())->toBeTrue();
+});
+
+it('is the latest when it is the only membership of the member (RN-08)', function () {
+    $membership = Membership::factory()->create();
+
+    expect($membership->isLatestNotCancelled())->toBeTrue();
+});

@@ -66,14 +66,7 @@ class CancelMembership
             }
 
             // RN-08: solo la más reciente no anulada (mayor vencimiento; el id desempata).
-            $latest = Membership::query()
-                ->where('member_id', $current->member_id)
-                ->notCancelled()
-                ->orderByDesc('ends_on')
-                ->orderByDesc('id')
-                ->first();
-
-            if ($latest === null || ! $latest->is($current)) {
+            if (! $current->isLatestNotCancelled()) {
                 throw ValidationException::withMessages([
                     'membership' => 'Solo se puede anular la membresía más reciente del socio.',
                 ]);

@@ -86,6 +86,29 @@ class Membership extends Model
     }
 
     /**
+     * Indica si es la membresía más reciente NO anulada de su socio (RN-08).
+     *
+     * «Más reciente» es la de mayor vencimiento, con el id como desempate: la
+     * misma definición del estado del socio (RN-05). Es la única que se puede
+     * anular. Una ya anulada nunca lo es.
+     */
+    public function isLatestNotCancelled(): bool
+    {
+        if ($this->cancelled_at !== null) {
+            return false;
+        }
+
+        $latestId = static::query()
+            ->where('member_id', $this->member_id)
+            ->notCancelled()
+            ->orderByDesc('ends_on')
+            ->orderByDesc('id')
+            ->value('id');
+
+        return (int) $latestId === (int) $this->getKey();
+    }
+
+    /**
      * Estado de esta membresía para el historial (RF-12), según RN-01 y RN-08.
      *
      * Anulada manda sobre cualquier fecha; después se compara con hoy

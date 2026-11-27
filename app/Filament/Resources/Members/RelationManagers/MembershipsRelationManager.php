@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Members\RelationManagers;
 
+use App\Actions\CancelMembership;
 use App\Actions\RenewMembership;
 use App\Enums\PaymentMethod;
 use App\Models\Member;
@@ -12,6 +13,7 @@ use App\Models\Plan;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -80,6 +82,9 @@ class MembershipsRelationManager extends RelationManager
             ])
             ->headerActions([
                 $this->registerMembershipAction(),
+            ])
+            ->recordActions([
+                $this->cancelMembershipAction(),
             ])
             ->defaultSort('starts_on', 'desc')
             ->defaultPaginationPageOption(25);
@@ -165,6 +170,55 @@ class MembershipsRelationManager extends RelationManager
                 Notification::make()
                     ->success()
                     ->title('Membresía registrada')
+                    ->send();
+            });
+    }
+
+    /**
+     * Acción «Anular» (RF-14, RN-08): solo el administrador, solo sobre la
+     * membresía más reciente no anulada, con motivo obligatorio. La regla de
+     * fondo vive en CancelMembership; el botón se oculta para no ofrecerlo
+     * donde no aplica.
+     */
+    private function cancelMembershipAction(): Action
+    {
+        return Action::make('cancelMembership')
+            ->label('Anular')
+            ->icon('heroicon-m-x-circle')
+            ->color('danger')
+            ->authorize('cancel')
+            ->visible(fn (Membership $record): bool => $record->isLatestNotCancelled())
+            ->modalHeading('Anular membresía')
+            ->modalDescription('La membresía dejará de contar como vigente y su pago se excluirá de los ingresos. Las asistencias ya registradas se conservan. Esta acción no se puede deshacer.')
+            ->modalSubmitActionLabel('Anular')
+            ->schema([
+                Textarea::make('reason')
+                    ->label('Motivo')
+                    ->required()
+                    ->minLength(CancelMembership::MIN_REASON_LENGTH)
+                    ->maxLength(CancelMembership::MAX_REASON_LENGTH)
+                    ->rows(3),
+            ])
+            ->action(function (array $data, Membership $record, Action $action): void {
+                // Defensa en profundidad: ocultar el botón no impide la llamada.
+                Gate::authorize('cancel', $record);
+
+                try {
+                    app(CancelMembership::class)->handle($record, $data['reason']);
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->danger()
+                        ->title('No se pudo anular la membresía')
+                        ->body((string) collect($exception->errors())->flatten()->first())
+                        ->send();
+
+                    // Mantiene el modal abierto para corregir y reintentar.
+                    $action->halt();
+                }
+
+                Notification::make()
+                    ->success()
+                    ->title('Membresía anulada')
                     ->send();
             });
     }
