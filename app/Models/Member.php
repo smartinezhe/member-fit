@@ -109,6 +109,16 @@ class Member extends Model
     }
 
     /**
+     * Asistencias del socio (RF-12, RF-23).
+     *
+     * @return HasMany<Attendance, $this>
+     */
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    /**
      * Estado de membresía calculado (RN-05).
      *
      * En listados, usar antes el scope withLatestEndDate() para que el valor
